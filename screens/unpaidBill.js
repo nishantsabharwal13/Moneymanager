@@ -9,8 +9,8 @@ import {
   View,
   TextInput,
   FlatList,
-  ActivityIndicator
-
+  ActivityIndicator,
+  Alert
 } from 'react-native';
 
 const BaseUrl = "https://billers-app.herokuapp.com/api";
@@ -20,13 +20,15 @@ import Colors from '../constants/Colors';
 import Loader from '../components/loader';
 
 import formatDate from '../helpers/format-date';
+import {AsyncStorage} from 'react-native';
 
 export default class ListScreen extends React.Component {
 
   state = {
     paidBills : [],
     unpaidBills: [],
-    loading : false
+    loading : false,
+    walletBalance: 0
   }
 
   getAllBillers = () => {
@@ -46,8 +48,7 @@ export default class ListScreen extends React.Component {
       });
   }
 
-  payBill = billId => {
-    this.setState({loading: true});
+  payBill = (billId, amount) => {
 
     fetch(`${BaseUrl}/bills/paid/${billId}`, {
       method: 'PUT',
@@ -56,21 +57,42 @@ export default class ListScreen extends React.Component {
     })
       .then(res =>res.json())
       .then(res => {
-        console.log(res)
-        this.setState({loading: false});
+        let index = this.state.unpaidBills.findIndex(i => i._id == billId);
+        this.setState({
+          loading: false,
+          unpaidBills: [
+            ...this.state.unpaidBills.slice(0, index),
+            ...this.state.unpaidBills.slice(index+1)
+          ],
+          walletBalance: this.state.walletBalance - amount
+        },() => {
+          Alert.alert(
+            'Payment Complete',
+            `Payment of ${amount} is completed`,
+            [
+              {text: 'OK', onPress: () => console.log('OK Pressed')},
+            ],
+            {cancelable: false},
+          );
+          AsyncStorage.setItem("BALANCE", `${this.state.walletBalance}`);
+        });
       })
       .catch(e => {
         console.log(e);
       });
   }
 
-  componentDidMount() {
+  async componentDidMount() {
     this.setState({loading: true});
     this.getAllBillers();
+    const value = await AsyncStorage.getItem('BALANCE');
+    if (value !== null) {
+      this.setState({walletBalance: +value});
+    }
   }
 
   render() {
-    const {paidBills, unpaidBills} = this.state;
+    const {paidBills, unpaidBills, walletBalance} = this.state;
     return (
       <View style={styles.container}>
         <View style={styles.wallet}>
@@ -82,7 +104,7 @@ export default class ListScreen extends React.Component {
           />
           <View style={styles.info}>
             <Text styles={styles.title}>MoneyManager Wallet Balance</Text>
-            <Text style={styles.price}>$ 8,500</Text>
+            <Text style={styles.price}>$ {walletBalance}</Text>
             <Text style={styles.additionalInfo}>Issued by Money Manager Bank</Text>
           </View>
         </View>
@@ -90,19 +112,21 @@ export default class ListScreen extends React.Component {
           <View>
             <Text style={styles.billTitle}>Unpaid Bills</Text>
             <FlatList
+              style={styles.list}
               data={unpaidBills}
               renderItem={({ item }) => (
                 <View style={styles.card}>
                   <Image
                     style={{width: 50, height: 50, margin: 10}}
-                    source={{uri: 'https://cdn-images-1.medium.com/max/1200/1*ty4NvNrGg4ReETxqU2N3Og.png'}}
+                    source={{uri: item.billerInfo[0].logoUrl}}
                   />
                   <View style={styles.info}>
-                    <Text styles={styles.title}>{item.biller}</Text>
+                  <Text styles={styles.title}>{item.billType}</Text>
+                    <Text styles={styles.title}>by {item.billerInfo[0].name}</Text>
                     <Text style={styles.price}>$ {item.amount}</Text>
                     <Text style={styles.additionalInfo}>Bill Generated on {formatDate(item.date)}</Text>
                     <TouchableOpacity
-                      onPress={() => this.payBill(item._id)}
+                      onPress={() => this.payBill(item._id, item.amount)}
                       style={styles.payButton}
                     >
                       <Text style={styles.payText}>Pay</Text>
@@ -172,5 +196,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingLeft: 20,
     fontWeight: "bold"
+  },
+  list: {
+    marginBottom: 120
   }
 });

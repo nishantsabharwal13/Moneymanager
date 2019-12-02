@@ -57,6 +57,8 @@ Paid.path = '';
 const tabNavigator = createBottomTabNavigator({
   Unpaid,
   Paid,
+}, {
+  lazy: false
 });
 
 

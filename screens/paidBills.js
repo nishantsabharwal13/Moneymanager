@@ -18,15 +18,40 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Colors from '../constants/Colors';
 import formatDate from '../helpers/format-date';
 import Loader from '../components/loader';
+import {AsyncStorage} from 'react-native';
 
 export default class ListScreen extends React.Component {
 
   state = {
     paidBills : [],
     unpaidBills: [],
-    loading : false
+    loading : false,
+    walletBalance: 0
   }
 
+  static navigationOptions = () => {
+    return {
+      tabBarOnPress({ navigation, defaultHandler }) {
+        navigation.state.params.onTabFocus();
+        defaultHandler();
+      }
+    };
+  };
+
+  constructor(props) {
+    super(props);
+    props.navigation.setParams({
+      onTabFocus: this.handleTabFocus
+    });
+  }
+
+  handleTabFocus = async () => {
+    this.getAllBillers();
+    const value = await AsyncStorage.getItem('BALANCE');
+    if (value !== null) {
+      this.setState({walletBalance: +value});
+    }
+  };
 
   getAllBillers = () => {
     fetch(`${BaseUrl}/bills`)
@@ -42,13 +67,12 @@ export default class ListScreen extends React.Component {
     });
   }
 
-  componentDidMount() {
+  async componentDidMount() {
     this.setState({loading: true});
-    this.getAllBillers();
   }
 
   render() {
-    const {paidBills, unpaidBills} = this.state;
+    const {paidBills, unpaidBills, walletBalance} = this.state;
     return (
       <View style={styles.container}>
         <View style={styles.wallet}>
@@ -60,7 +84,7 @@ export default class ListScreen extends React.Component {
           />
           <View style={styles.info}>
             <Text styles={styles.title}>MoneyManager Wallet Balance</Text>
-            <Text style={styles.price}>$ 8,500</Text>
+            <Text style={styles.price}>$ {walletBalance}</Text>
             <Text style={styles.additionalInfo}>Issued by Money Manager Bank</Text>
           </View>
         </View>
@@ -68,15 +92,17 @@ export default class ListScreen extends React.Component {
           <View>
             <Text style={styles.billTitle}>Paid Bills</Text>
             <FlatList
+              style={styles.list}
               data={paidBills}
               renderItem={({ item }) => (
                 <View style={styles.card}>
                 <Image
                   style={{width: 50, height: 50, margin: 10}}
-                  source={{uri: 'https://cdn-images-1.medium.com/max/1200/1*ty4NvNrGg4ReETxqU2N3Og.png'}}
+                  source={{uri: item.billerInfo[0].logoUrl}}
                 />
                   <View style={styles.info}>
-                    <Text styles={styles.title}>{item.biller}</Text>
+                    <Text styles={styles.title}>{item.billType}</Text>
+                    <Text styles={styles.title}>by {item.billerInfo[0].name}</Text>
                     <Text style={styles.price}>$ {item.amount}</Text>
                     <Text style={styles.additionalInfo}>Paid on {formatDate(item.paidDate)}</Text>
                   </View>
@@ -135,5 +161,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingLeft: 20,
     fontWeight: "bold"
+  },
+  list: {
+    marginBottom: 120
   }
 });
